@@ -130,9 +130,10 @@ Deno.serve(async (req) => {
     }
     console.log(`[sync-results] mapped=${mapped}`);
 
-    // ===== PASSO 2: Snapshot artilharia (antes) =====
+    // ===== PASSO 2: Snapshot artilharia (antes) — não-fatal =====
     console.log("[sync-results] Step 2: scorers snapshot (before)");
-    const scorersBefore = await fetchScorersMap();
+    const scorersBeforeList = await fetchScorersList();
+    const scorersBefore = buildScorersMap(scorersBeforeList);
 
     // ===== PASSO 3: Sincronizar resultados =====
     console.log("[sync-results] Step 3: syncing FINISHED matches");
@@ -175,70 +176,75 @@ Deno.serve(async (req) => {
     }
     console.log(`[sync-results] updated=${updated}`);
 
-    // ===== PASSO 4: Goleadores =====
+    // ===== PASSO 4: Goleadores — pula se scorers indisponível =====
     console.log("[sync-results] Step 4: scorer points");
-    const scorersAfter = await fetchScorersMap();
+    const scorersAfterList = await fetchScorersList();
+    const scorersAfter = buildScorersMap(scorersAfterList);
     let scorers_resolved = 0;
+    let scorers_skipped = false;
 
-    for (const matchId of updatedMatchIds) {
-      const { data: preds, error: predErr } = await supabase
-        .from("predictions")
-        .select("id, user_id, bolao_id, scorer_name")
-        .eq("match_id", matchId)
-        .not("scorer_name", "is", null);
-      if (predErr) {
-        console.error("preds query err", predErr);
-        continue;
+    if (!scorersBefore || !scorersAfter) {
+      console.warn("[sync-results] scorers data unavailable — skipping scorer points this run");
+      scorers_skipped = true;
+    } else {
+      // build team-name lookup once from latest snapshot
+      const teamByPlayer = new Map<string, string>();
+      for (const s of scorersAfterList ?? []) {
+        const name = s.player?.name;
+        if (name) teamByPlayer.set(norm(name), s.team?.name ?? "");
       }
-      if (!preds || preds.length === 0) continue;
 
-      // Group hits per player to build feed events
-      const hitsByPlayer = new Map<string, { bolaoIds: Set<string>; teamName: string | null; count: number }>();
-
-      for (const p of preds) {
-        if (!p.scorer_name) continue;
-        const key = norm(p.scorer_name);
-        const before = scorersBefore.get(key) ?? 0;
-        const after = scorersAfter.get(key) ?? 0;
-        const scored = after > before;
-        const points = scored ? 2 : -1;
-
-        const { error: updPredErr } = await supabase
+      for (const matchId of updatedMatchIds) {
+        const { data: preds, error: predErr } = await supabase
           .from("predictions")
-          .update({ scorer_points: points })
-          .eq("id", p.id);
-        if (updPredErr) {
-          console.error("update pred err", updPredErr);
+          .select("id, user_id, bolao_id, scorer_name")
+          .eq("match_id", matchId)
+          .not("scorer_name", "is", null);
+        if (predErr) {
+          console.error("preds query err", predErr);
           continue;
         }
-        scorers_resolved++;
+        if (!preds || preds.length === 0) continue;
 
-        if (scored) {
-          const entry = hitsByPlayer.get(p.scorer_name) ?? { bolaoIds: new Set(), teamName: null, count: 0 };
-          entry.bolaoIds.add(p.bolao_id);
-          entry.count++;
-          hitsByPlayer.set(p.scorer_name, entry);
-        }
-      }
+        const hitsByPlayer = new Map<string, { bolaoIds: Set<string>; count: number }>();
 
-      // Feed events for each player that had hits
-      for (const [playerName, info] of hitsByPlayer.entries()) {
-        // find team name from scorers API
-        let teamName = "";
-        for (const s of (await apiGet(`/competitions/WC/scorers?season=2026&limit=100`)).scorers ?? []) {
-          if (norm(s.player?.name ?? "") === norm(playerName)) {
-            teamName = s.team?.name ?? "";
-            break;
+        for (const p of preds) {
+          if (!p.scorer_name) continue;
+          const key = norm(p.scorer_name);
+          const before = scorersBefore.get(key) ?? 0;
+          const after = scorersAfter.get(key) ?? 0;
+          const scored = after > before;
+          const points = scored ? 2 : -1;
+
+          const { error: updPredErr } = await supabase
+            .from("predictions")
+            .update({ scorer_points: points })
+            .eq("id", p.id);
+          if (updPredErr) {
+            console.error("update pred err", updPredErr);
+            continue;
+          }
+          scorers_resolved++;
+
+          if (scored) {
+            const entry = hitsByPlayer.get(p.scorer_name) ?? { bolaoIds: new Set(), count: 0 };
+            entry.bolaoIds.add(p.bolao_id);
+            entry.count++;
+            hitsByPlayer.set(p.scorer_name, entry);
           }
         }
-        for (const bolaoId of info.bolaoIds) {
-          const { error: feedErr } = await supabase.from("feed_events").insert({
-            bolao_id: bolaoId,
-            match_id: matchId,
-            event_type: "scorer_hit",
-            message: `⚽ ${playerName} marcou para ${teamName}! ${info.count} palpiteiro(s) acertaram o goleador.`,
-          });
-          if (feedErr) console.error("feed insert err", feedErr);
+
+        for (const [playerName, info] of hitsByPlayer.entries()) {
+          const teamName = teamByPlayer.get(norm(playerName)) ?? "";
+          for (const bolaoId of info.bolaoIds) {
+            const { error: feedErr } = await supabase.from("feed_events").insert({
+              bolao_id: bolaoId,
+              match_id: matchId,
+              event_type: "scorer_hit",
+              message: `⚽ ${playerName} marcou para ${teamName}! ${info.count} palpiteiro(s) acertaram o goleador.`,
+            });
+            if (feedErr) console.error("feed insert err", feedErr);
+          }
         }
       }
     }
@@ -265,7 +271,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ mapped, updated, scorers_resolved }),
+      JSON.stringify({ mapped, updated, scorers_resolved, scorers_skipped }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {
