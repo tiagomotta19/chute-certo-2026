@@ -649,47 +649,71 @@ const ResultsTab = ({
   matches: Match[];
   onSave: (id: string, home: number, away: number, bonusResult?: boolean | null) => Promise<void>;
 }) => {
-  const [competition, setCompetition] = useState("copa_do_mundo_2026");
-
-  const filteredMatches = matches.filter((m) =>
-    competition === "brasileirao_2026" ? !!m.round_name : !m.round_name
-  );
-
-  // Group by round for Brasileirão
+  // Fase de grupos: agrupar por round_name (1ª, 2ª, 3ª Rodada)
+  const groupMatches = matches.filter((m) => m.stage === "group");
   const byRound: Record<string, Match[]> = {};
-  if (competition === "brasileirao_2026") {
-    filteredMatches.forEach((m) => {
-      const round = m.round_name || "Sem rodada";
-      if (!byRound[round]) byRound[round] = [];
-      byRound[round].push(m);
-    });
-  }
+  groupMatches.forEach((m) => {
+    const round = m.round_name || "Sem rodada";
+    if (!byRound[round]) byRound[round] = [];
+    byRound[round].push(m);
+  });
+  const roundOrder = ["1ª Rodada", "2ª Rodada", "3ª Rodada"];
+  const sortedRounds = Object.keys(byRound).sort((a, b) => {
+    const ia = roundOrder.indexOf(a);
+    const ib = roundOrder.indexOf(b);
+    if (ia === -1 && ib === -1) return a.localeCompare(b);
+    if (ia === -1) return 1;
+    if (ib === -1) return -1;
+    return ia - ib;
+  });
+
+  // Mata-mata: agrupar por stage
+  const knockoutStages: Match["stage"][] = [
+    "round_of_32",
+    "round_of_16",
+    "quarter_final",
+    "semi_final",
+    "third_place",
+    "final",
+  ];
+  const byStage: Partial<Record<Match["stage"], Match[]>> = {};
+  knockoutStages.forEach((s) => {
+    const list = matches.filter((m) => m.stage === s);
+    if (list.length) byStage[s] = list;
+  });
 
   return (
-    <div className="space-y-3">
-      <Select value={competition} onValueChange={setCompetition}>
-        <SelectTrigger>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="copa_do_mundo_2026">Copa do Mundo</SelectItem>
-          <SelectItem value="brasileirao_2026">Brasileirão</SelectItem>
-        </SelectContent>
-      </Select>
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-base font-semibold mb-2">Fase de Grupos</h2>
+        <div className="space-y-4">
+          {sortedRounds.map((round) => (
+            <div key={round} className="space-y-2">
+              <h3 className="text-sm font-semibold text-muted-foreground">{round}</h3>
+              {byRound[round].map((match) => (
+                <MatchResultEditor key={match.id} match={match} onSave={onSave} />
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
 
-      {competition === "brasileirao_2026" ? (
-        Object.entries(byRound).map(([round, roundMatches]) => (
-          <div key={round} className="space-y-2">
-            <h3 className="text-sm font-semibold text-muted-foreground">{round}</h3>
-            {roundMatches.map((match) => (
-              <MatchResultEditor key={match.id} match={match} onSave={onSave} />
-            ))}
+      {knockoutStages.some((s) => byStage[s]?.length) && (
+        <div>
+          <h2 className="text-base font-semibold mb-2">Mata-mata</h2>
+          <div className="space-y-4">
+            {knockoutStages.map((s) =>
+              byStage[s]?.length ? (
+                <div key={s} className="space-y-2">
+                  <h3 className="text-sm font-semibold text-muted-foreground">{stageLabels[s]}</h3>
+                  {byStage[s]!.map((match) => (
+                    <MatchResultEditor key={match.id} match={match} onSave={onSave} />
+                  ))}
+                </div>
+              ) : null
+            )}
           </div>
-        ))
-      ) : (
-        filteredMatches.map((match) => (
-          <MatchResultEditor key={match.id} match={match} onSave={onSave} />
-        ))
+        </div>
       )}
     </div>
   );
