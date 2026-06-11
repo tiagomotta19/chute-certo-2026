@@ -23,20 +23,49 @@ const NAME_MAP: Record<string, string> = {
 const norm = (s: string) => s.trim().toLowerCase();
 const ptToEn = (pt: string) => NAME_MAP[pt] ?? pt;
 
-async function apiGet(path: string) {
+async function apiGet(path: string, attempts = 3) {
   const key = Deno.env.get("FOOTBALL_DATA_API_KEY")!;
-  const res = await fetch(`${BASE}${path}`, { headers: { "X-Auth-Token": key } });
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`football-data ${path} → ${res.status}: ${txt}`);
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 10000);
+    try {
+      const res = await fetch(`${BASE}${path}`, {
+        headers: { "X-Auth-Token": key, "Connection": "close" },
+        signal: ctrl.signal,
+      });
+      clearTimeout(t);
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`football-data ${path} → ${res.status}: ${txt}`);
+      }
+      return await res.json();
+    } catch (e) {
+      clearTimeout(t);
+      lastErr = e;
+      console.warn(`[apiGet] attempt ${i + 1}/${attempts} failed for ${path}: ${String((e as Error).message ?? e)}`);
+      if (i < attempts - 1) {
+        await new Promise((r) => setTimeout(r, 500 * Math.pow(2, i)));
+      }
+    }
   }
-  return await res.json();
+  throw lastErr;
 }
 
-async function fetchScorersMap(): Promise<Map<string, number>> {
-  const data = await apiGet(`/competitions/WC/scorers?season=2026&limit=100`);
+async function fetchScorersList(): Promise<any[] | null> {
+  try {
+    const data = await apiGet(`/competitions/WC/scorers?season=2026&limit=100`);
+    return data.scorers ?? [];
+  } catch (e) {
+    console.error("[fetchScorersList] failed (non-fatal):", String((e as Error).message ?? e));
+    return null;
+  }
+}
+
+function buildScorersMap(scorers: any[] | null): Map<string, number> | null {
+  if (!scorers) return null;
   const map = new Map<string, number>();
-  for (const s of data.scorers ?? []) {
+  for (const s of scorers) {
     const name = s.player?.name;
     const goals = s.goals ?? s.numberOfGoals ?? 0;
     if (name) map.set(norm(name), goals);
