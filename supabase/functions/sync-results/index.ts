@@ -4,18 +4,20 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const BASE = "https://api.football-data.org/v4";
 
+// PT (como gravado no DB) → nome exato retornado por football-data.org v4
 const NAME_MAP: Record<string, string> = {
-  "EUA": "USA", "Tchéquia": "Czech Republic", "Bósnia e Herzegovina": "Bosnia and Herzegovina",
-  "Coreia do Sul": "Korea Republic", "África do Sul": "South Africa", "Holanda": "Netherlands",
+  "EUA": "United States", "Tchéquia": "Czechia", "Bósnia e Herzegovina": "Bosnia-Herzegovina",
+  "Coreia do Sul": "South Korea", "África do Sul": "South Africa", "Holanda": "Netherlands",
   "Alemanha": "Germany", "França": "France", "Espanha": "Spain", "Brasil": "Brazil",
   "Inglaterra": "England", "Japão": "Japan", "Suécia": "Sweden", "Bélgica": "Belgium",
   "Arábia Saudita": "Saudi Arabia", "Marrocos": "Morocco", "Senegal": "Senegal",
   "Uruguai": "Uruguay", "Colômbia": "Colombia", "Croácia": "Croatia", "Equador": "Ecuador",
-  "Austrália": "Australia", "Turquia": "Türkiye", "Irã": "Iran", "Noruega": "Norway",
+  "Austrália": "Australia", "Turquia": "Turkey", "Irã": "Iran", "Noruega": "Norway",
   "Argélia": "Algeria", "Áustria": "Austria", "Jordânia": "Jordan", "Escócia": "Scotland",
-  "Panamá": "Panama", "Cabo Verde": "Cape Verde", "Nova Zelândia": "New Zealand",
-  "Costa do Marfim": "Côte d'Ivoire", "RD Congo": "DR Congo", "Uzbequistão": "Uzbekistan",
-  "Curaçao": "Curaçao", "Paraguai": "Paraguay", "Catar": "Qatar", "Gana": "Ghana",
+  "Panamá": "Panama", "Cabo Verde": "Cape Verde Islands", "Nova Zelândia": "New Zealand",
+  "Costa do Marfim": "Ivory Coast", "RD Congo": "Congo DR", "RD do Congo": "Congo DR",
+  "Uzbequistão": "Uzbekistan", "Curaçao": "Curaçao", "Curaçau": "Curaçao",
+  "Paraguai": "Paraguay", "Catar": "Qatar", "Gana": "Ghana", "Suíça": "Switzerland",
   "Iraque": "Iraq", "Egito": "Egypt", "Tunísia": "Tunisia", "Haiti": "Haiti",
   "Portugal": "Portugal", "Argentina": "Argentina", "México": "Mexico", "Canadá": "Canada",
 };
