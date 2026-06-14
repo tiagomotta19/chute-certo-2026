@@ -1,4 +1,5 @@
-// sync-results — Mapeia api_football_id e sincroniza resultados + goleadores da Copa 2026
+// sync-results — Mapeia api_football_id, sincroniza resultados e atribui pontos de goleador
+// usando snapshots persistentes da artilharia (eliminando a corrida do approach antigo).
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
@@ -103,7 +104,6 @@ Deno.serve(async (req) => {
     let mapped = 0;
     const TWO_HOURS = 2 * 60 * 60 * 1000;
 
-    // index API matches by normalized teams
     for (const apiM of apiMatches) {
       const apiHome = norm(apiM.homeTeam?.name ?? "");
       const apiAway = norm(apiM.awayTeam?.name ?? "");
@@ -122,33 +122,43 @@ Deno.serve(async (req) => {
           .from("matches")
           .update({ api_football_id: apiM.id })
           .eq("id", match.id);
-        if (upErr) {
-          console.error("update api_football_id err", upErr);
-        } else {
-          mapped++;
-          match.api_football_id = apiM.id; // update local cache
-        }
+        if (upErr) console.error("update api_football_id err", upErr);
+        else { mapped++; match.api_football_id = apiM.id; }
       }
     }
     console.log(`[sync-results] mapped=${mapped}`);
 
-    // ===== PASSO 2: Snapshot artilharia (antes) — não-fatal =====
-    console.log("[sync-results] Step 2: scorers snapshot (before)");
-    const scorersBeforeList = await fetchScorersList();
-    const scorersBefore = buildScorersMap(scorersBeforeList);
+    // ===== PASSO 2: Snapshot da artilharia ATUAL → grava no banco =====
+    // Isso serve como "antes" para jogos que vierem a terminar no futuro.
+    console.log("[sync-results] Step 2: capturing current scorers snapshot");
+    const currentScorersList = await fetchScorersList();
+    const currentScorersMap = buildScorersMap(currentScorersList);
+
+    let snapshot_saved = false;
+    if (currentScorersList && currentScorersList.length > 0) {
+      const compact = currentScorersList.map((s: any) => ({
+        name: s.player?.name,
+        team: s.team?.name,
+        goals: s.goals ?? s.numberOfGoals ?? 0,
+      }));
+      const { error: snapErr } = await supabase
+        .from("scorer_snapshots")
+        .insert({ scorers: compact });
+      if (snapErr) console.error("snapshot insert err", snapErr);
+      else snapshot_saved = true;
+    }
 
     // ===== PASSO 3: Sincronizar resultados =====
     console.log("[sync-results] Step 3: syncing FINISHED matches");
     const finishedData = await apiGet(`/competitions/WC/matches?season=2026&status=FINISHED`);
     const finished: any[] = finishedData.matches ?? [];
 
-    // re-read db state with score/override
     const { data: dbFull, error: dbFullErr } = await supabase
       .from("matches")
-      .select("id, api_football_id, home_score, away_score, is_manual_override, home_team, away_team");
+      .select("id, api_football_id, home_score, away_score, is_manual_override, home_team, away_team, match_date");
     if (dbFullErr) throw dbFullErr;
 
-    const updatedMatchIds: string[] = [];
+    const updatedMatches: Array<{ id: string; match_date: string }> = [];
     let updated = 0;
 
     for (const apiM of finished) {
@@ -165,47 +175,61 @@ Deno.serve(async (req) => {
         .from("matches")
         .update({ home_score: homeScore, away_score: awayScore, is_finished: true })
         .eq("id", dbM.id);
-      if (upErr) {
-        console.error("update score err", upErr);
-        continue;
-      }
+      if (upErr) { console.error("update score err", upErr); continue; }
 
       const { error: rpcErr } = await supabase.rpc("calculate_match_points", { match_id_input: dbM.id });
       if (rpcErr) console.error("calculate_match_points err", rpcErr);
 
-      updatedMatchIds.push(dbM.id);
+      updatedMatches.push({ id: dbM.id, match_date: dbM.match_date });
       updated++;
     }
     console.log(`[sync-results] updated=${updated}`);
 
-    // ===== PASSO 4: Goleadores — pula se scorers indisponível =====
-    console.log("[sync-results] Step 4: scorer points");
-    const scorersAfterList = await fetchScorersList();
-    const scorersAfter = buildScorersMap(scorersAfterList);
+    // ===== PASSO 4: Goleadores — compara snapshot pré-kickoff vs atual =====
+    console.log("[sync-results] Step 4: scorer points (persistent snapshot strategy)");
     let scorers_resolved = 0;
     let scorers_skipped = false;
 
-    if (!scorersBefore || !scorersAfter) {
+    if (!currentScorersMap) {
       console.warn("[sync-results] scorers data unavailable — skipping scorer points this run");
       scorers_skipped = true;
     } else {
-      // build team-name lookup once from latest snapshot
       const teamByPlayer = new Map<string, string>();
-      for (const s of scorersAfterList ?? []) {
+      for (const s of currentScorersList ?? []) {
         const name = s.player?.name;
         if (name) teamByPlayer.set(norm(name), s.team?.name ?? "");
       }
 
-      for (const matchId of updatedMatchIds) {
+      for (const { id: matchId, match_date } of updatedMatches) {
+        // Buscar snapshot mais recente ANTES do kickoff
+        const { data: snap, error: snapQErr } = await supabase
+          .from("scorer_snapshots")
+          .select("scorers, captured_at")
+          .lt("captured_at", match_date)
+          .order("captured_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (snapQErr) {
+          console.error("snapshot query err", snapQErr);
+          continue;
+        }
+        if (!snap) {
+          console.warn(`[sync-results] no pre-kickoff snapshot for match ${matchId} (kickoff=${match_date}) — skipping scorer points for this match`);
+          continue;
+        }
+
+        const beforeMap = new Map<string, number>();
+        for (const s of (snap.scorers as any[]) ?? []) {
+          if (s.name) beforeMap.set(norm(s.name), s.goals ?? 0);
+        }
+
         const { data: preds, error: predErr } = await supabase
           .from("predictions")
           .select("id, user_id, bolao_id, scorer_name")
           .eq("match_id", matchId)
           .not("scorer_name", "is", null);
-        if (predErr) {
-          console.error("preds query err", predErr);
-          continue;
-        }
+        if (predErr) { console.error("preds query err", predErr); continue; }
         if (!preds || preds.length === 0) continue;
 
         const hitsByPlayer = new Map<string, { bolaoIds: Set<string>; count: number }>();
@@ -213,8 +237,8 @@ Deno.serve(async (req) => {
         for (const p of preds) {
           if (!p.scorer_name) continue;
           const key = norm(p.scorer_name);
-          const before = scorersBefore.get(key) ?? 0;
-          const after = scorersAfter.get(key) ?? 0;
+          const before = beforeMap.get(key) ?? 0;
+          const after = currentScorersMap.get(key) ?? 0;
           const scored = after > before;
           const points = scored ? 2 : -1;
 
@@ -222,10 +246,7 @@ Deno.serve(async (req) => {
             .from("predictions")
             .update({ scorer_points: points })
             .eq("id", p.id);
-          if (updPredErr) {
-            console.error("update pred err", updPredErr);
-            continue;
-          }
+          if (updPredErr) { console.error("update pred err", updPredErr); continue; }
           scorers_resolved++;
 
           if (scored) {
@@ -255,7 +276,7 @@ Deno.serve(async (req) => {
     console.log("[sync-results] Step 5: invoking generate-feed-events");
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    for (const matchId of updatedMatchIds) {
+    for (const { id: matchId } of updatedMatches) {
       try {
         const res = await fetch(`${supabaseUrl}/functions/v1/generate-feed-events`, {
           method: "POST",
@@ -273,7 +294,7 @@ Deno.serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ mapped, updated, scorers_resolved, scorers_skipped }),
+      JSON.stringify({ mapped, updated, scorers_resolved, scorers_skipped, snapshot_saved }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {
