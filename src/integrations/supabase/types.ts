@@ -390,6 +390,24 @@ export type Database = {
         }
         Relationships: []
       }
+      scorer_snapshots: {
+        Row: {
+          captured_at: string
+          id: string
+          scorers: Json
+        }
+        Insert: {
+          captured_at?: string
+          id?: string
+          scorers: Json
+        }
+        Update: {
+          captured_at?: string
+          id?: string
+          scorers?: Json
+        }
+        Relationships: []
+      }
       season_predictions: {
         Row: {
           best_player: string | null
