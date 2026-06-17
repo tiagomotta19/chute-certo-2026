@@ -224,22 +224,16 @@ Deno.serve(async (req) => {
       }
     }
 
-    // De-duplicate: avoid re-inserting same (bolao, match, user, type) if it already exists
+    // De-dup at DB level via unique index (bolao_id, event_type, match_id, user_id)
     if (eventsToInsert.length > 0) {
-      const { data: existing } = await admin
+      const { error: upsertErr } = await admin
         .from("feed_events")
-        .select("bolao_id, user_id, event_type")
-        .eq("match_id", match_id);
-      const existingKeys = new Set(
-        (existing || []).map((e: any) => `${e.bolao_id}|${e.user_id}|${e.event_type}`)
-      );
-      const fresh = eventsToInsert.filter(
-        (e) => !existingKeys.has(`${e.bolao_id}|${e.user_id}|${e.event_type}`)
-      );
-      if (fresh.length > 0) {
-        await admin.from("feed_events").insert(fresh);
-      }
-      return new Response(JSON.stringify({ inserted: fresh.length }), {
+        .upsert(eventsToInsert, {
+          onConflict: "bolao_id,event_type,match_id,user_id",
+          ignoreDuplicates: true,
+        });
+      if (upsertErr) console.error("feed upsert error", upsertErr);
+      return new Response(JSON.stringify({ attempted: eventsToInsert.length }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
