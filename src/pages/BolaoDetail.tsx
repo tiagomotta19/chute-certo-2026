@@ -675,24 +675,42 @@ const MatchPredictionCard = ({
       </CardHeader>
       <CardContent>
         {locked ? (
-          prediction ? (
-            <div className="space-y-1 text-sm">
-              <p>
-                Seu palpite: <span className="font-bold">{prediction.home_score} × {prediction.away_score}</span>
-              </p>
-              {!isBrasileirao && prediction.scorer_name && (
-                <p>Goleador: <span className="font-medium">{prediction.scorer_name}</span></p>
-              )}
-              {isBrasileirao && bonusQuestion && (prediction as any)?.bonus_answer !== null && (
-                <p>{bonusQuestion} <span className="font-medium">{(prediction as any)?.bonus_answer ? "Sim" : "Não"}</span></p>
-              )}
-              {prediction.points !== null && (
-                <p className="font-bold text-accent">+{(prediction.points || 0) + (prediction.scorer_points || 0) + ((prediction as any)?.bonus_points || 0)} pts</p>
-              )}
+          <div className="space-y-3">
+            {prediction ? (
+              <div className="space-y-1 text-sm">
+                <p>
+                  Seu palpite: <span className="font-bold">{prediction.home_score} × {prediction.away_score}</span>
+                </p>
+                {!isBrasileirao && prediction.scorer_name && (
+                  <p>Goleador: <span className="font-medium">{prediction.scorer_name}</span></p>
+                )}
+                {isBrasileirao && bonusQuestion && (prediction as any)?.bonus_answer !== null && (
+                  <p>{bonusQuestion} <span className="font-medium">{(prediction as any)?.bonus_answer ? "Sim" : "Não"}</span></p>
+                )}
+                {prediction.points !== null && (
+                  <p className="font-bold text-accent">+{(prediction.points || 0) + (prediction.scorer_points || 0) + ((prediction as any)?.bonus_points || 0)} pts</p>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Sem palpite (jogo travado)</p>
+            )}
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowPredictions(true)}
+              >
+                Ver palpites do grupo
+              </Button>
             </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">Sem palpite (jogo travado)</p>
-          )
+            <MatchPredictionsDialog
+              open={showPredictions}
+              onOpenChange={setShowPredictions}
+              match={match}
+              bolaoId={bolaoId}
+            />
+          </div>
         ) : (
           <div className="space-y-3">
             <div className="flex items-center gap-2">
