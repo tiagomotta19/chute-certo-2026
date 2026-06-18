@@ -293,7 +293,9 @@ const BolaoDetail = () => {
                 onSave={savePrediction}
                 isMatchLocked={isMatchLocked}
                 isBrasileirao={(bolao as any).competition === "brasileirao_2026"}
+                bolaoId={id!}
               />
+
             )}
           </TabsContent>
 
