@@ -435,7 +435,7 @@ const RoundsAccordion = ({
       saving={savingMatch === match.id}
       onSave={onSave}
       isBrasileirao={isBrasileirao}
-      bolaoId={matches.length > 0 ? (match as any).bolao_id ?? "" : ""}
+      bolaoId={bolaoId}
     />
   );
 
