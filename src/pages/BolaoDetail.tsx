@@ -600,6 +600,7 @@ const MatchPredictionCard = ({
   saving,
   onSave,
   isBrasileirao = false,
+  bolaoId,
 }: {
   match: Tables<"matches">;
   prediction?: Tables<"predictions">;
@@ -607,7 +608,9 @@ const MatchPredictionCard = ({
   saving: boolean;
   onSave: (matchId: string, home: number, away: number, scorer: string, bonusAnswer?: boolean | null) => void;
   isBrasileirao?: boolean;
+  bolaoId: string;
 }) => {
+  const [showPredictions, setShowPredictions] = useState(false);
   const [homeScore, setHomeScore] = useState(prediction?.home_score?.toString() || "");
   const [awayScore, setAwayScore] = useState(prediction?.away_score?.toString() || "");
   const [scorer, setScorer] = useState(prediction?.scorer_name || "");
