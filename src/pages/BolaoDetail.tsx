@@ -358,6 +358,7 @@ const RoundsAccordion = ({
   onSave,
   isMatchLocked,
   isBrasileirao,
+  bolaoId,
 }: {
   matches: Match[];
   predictions: Record<string, Prediction>;
@@ -365,6 +366,7 @@ const RoundsAccordion = ({
   onSave: (matchId: string, home: number, away: number, scorer: string, bonusAnswer?: boolean | null) => void;
   isMatchLocked: (m: Match) => boolean;
   isBrasileirao: boolean;
+  bolaoId: string;
 }) => {
   // Brasileirão: group by round_name
   const byRound = useMemo(() => groupByRound(matches), [matches]);
