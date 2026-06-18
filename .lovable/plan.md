@@ -1,40 +1,32 @@
-## Plano: Edge Function `sync-results`
+# Ver palpites dos outros após o fechamento
 
-Criar `supabase/functions/sync-results/index.ts` que sincroniza resultados finalizados da Copa do Mundo 2026 com a API football-data.org.
+## Temos tudo que precisa?
+Sim. A RLS de `predictions` já permite que qualquer membro do bolão leia os palpites de todos os outros membros (`bolao_id IN get_user_bolao_ids()`). E `matches.match_date` é a referência usada hoje para travar edição — vamos usar o mesmo critério para liberar a visualização.
 
-### Estrutura
-- `verify_jwt = false` (pública, sem autenticação)
-- CORS habilitado
-- Usa `FOOTBALL_DATA_API_KEY` e `SUPABASE_SERVICE_ROLE_KEY` do env
-- Cliente Supabase com service role (bypass RLS)
+## Comportamento
+- Em cada card de jogo (componente `MatchCard` dentro de `BolaoDetail.tsx`), adicionar um botão **"Ver palpites do grupo"**.
+- Botão fica **desabilitado/oculto antes do horário do jogo** (`match.match_date > now()`), com tooltip "Disponível após o início do jogo". Depois do kickoff aparece habilitado para qualquer membro.
+- Ao clicar, abre um `Dialog` listando todos os membros do bolão com:
+  - Avatar + username
+  - Palpite: `home × away`
+  - Goleador escolhido (se houver)
+  - Se o jogo já estiver finalizado: pontos da partida + badge ✅ placar exato / 🎯 resultado+saldo / etc.
+  - Membros que não palpitaram aparecem com "— sem palpite —" no final da lista.
+- Ordenação: quem palpitou primeiro (created_at asc); finalizados ordenados por pontos desc.
 
-### Fluxo
-1. **Mapear `api_football_id`**: GET `/competitions/WC/matches?season=2026`. Para cada jogo da API, faz match no banco por nome PT→EN (via `NAME_MAP`) + janela de ±2h em `match_date`. UPDATE quando `api_football_id IS NULL`.
-2. **Snapshot artilharia (antes)**: GET `/competitions/WC/scorers?season=2026&limit=100` → `Map<playerName, goals>`.
-3. **Sincronizar resultados**: GET `/competitions/WC/matches?season=2026&status=FINISHED`. Para cada jogo:
-   - Skip se `is_manual_override = true` ou placar já bate
-   - UPDATE `home_score`, `away_score`, `is_finished = true`
-   - RPC `calculate_match_points(match_id)`
-   - Coleta `match_id` em lista de atualizados
-4. **Snapshot artilharia (depois)** + atribuir pontos de goleador:
-   - Para cada match atualizado, busca predictions com `scorer_name`
-   - Se gols do jogador aumentaram entre snapshots → `scorer_points = +2`, senão `-1`
-   - UPDATE em `predictions`
-   - Se ≥1 acerto, insere `feed_events` (`event_type='scorer_hit'`) por bolão envolvido
-5. **Feed events finais**: para cada match atualizado, chama `generate-feed-events` via `fetch` ao endpoint da edge function.
+## Detalhes técnicos
+- Novo componente `src/components/MatchPredictionsDialog.tsx`:
+  - Props: `matchId`, `bolaoId`, `match` (para saber se finalizado e mostrar pontos).
+  - Carrega no `onOpen`: 
+    1. `bolao_members` do bolão → lista de `user_id`s.
+    2. `profiles` (username, avatar_url) desses users.
+    3. `predictions` desse `match_id` + `bolao_id`.
+  - Junta tudo no client e renderiza.
+- Em `MatchCard`:
+  - Calcular `kickoffPassed = new Date(match.match_date) <= new Date()`.
+  - Renderizar o botão sempre, mas `disabled` quando `!kickoffPassed`.
+  - Botão estilo `variant="outline" size="sm"` abaixo do bloco de palpite/resultado, alinhado à direita.
+- Sem mudanças de schema, sem migration, sem edge function. Reaproveita RLS existente.
 
-### Resposta
-```json
-{ "mapped": N, "updated": N, "scorers_resolved": N }
-```
-
-### Detalhes técnicos
-- `NAME_MAP` PT→EN (conforme spec); usar mapa invertido para casamento
-- Comparação de nomes case-insensitive + trim
-- Janela de tempo: `Math.abs(dbDate - apiDate) <= 2h`
-- Tratamento de erro: try/catch global, retorna 500 com mensagem
-- Logs de progresso via `console.log` para debugging em `edge_function_logs`
-
-### Arquivos
-- `supabase/functions/sync-results/index.ts` (novo)
-- `supabase/config.toml` (adicionar bloco `[functions.sync-results] verify_jwt = false`)
+## Privacidade
+Hoje a RLS já expõe palpites entre membros — a mudança é só de UI. Se quiser manter "sigilo até o kickoff", o gating é client-side (boa UX), mas qualquer membro tecnicamente já consegue ler via API. Se for um requisito forte de sigilo, posso adicionar depois uma política/edge function que bloqueia leitura de palpites de outros enquanto `match_date > now()`. Me avisa se quer esse reforço junto.
