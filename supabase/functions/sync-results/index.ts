@@ -65,15 +65,6 @@ async function fetchScorersList(): Promise<any[] | null> {
   }
 }
 
-async function fetchScorersList(): Promise<any[] | null> {
-  try {
-    const data = await apiGet(`/competitions/WC/scorers?season=2026&limit=100`);
-    return data.scorers ?? [];
-  } catch (e) {
-    console.error("[fetchScorersList] failed (non-fatal):", String((e as Error).message ?? e));
-    return null;
-  }
-}
 
 // Fonte autoritativa: lista de gols do jogo específico. Retorna Map<nome_normalizado, nº_de_gols>.
 async function fetchMatchScorers(apiMatchId: number): Promise<Map<string, number> | null> {
