@@ -180,7 +180,7 @@ Deno.serve(async (req) => {
       .select("id, api_football_id, home_score, away_score, is_manual_override, home_team, away_team, match_date");
     if (dbFullErr) throw dbFullErr;
 
-    const updatedMatches: Array<{ id: string; match_date: string }> = [];
+    const updatedMatches: Array<{ id: string; match_date: string; api_football_id: number }> = [];
     let updated = 0;
 
     for (const apiM of finished) {
@@ -202,28 +202,29 @@ Deno.serve(async (req) => {
       const { error: rpcErr } = await supabase.rpc("calculate_match_points", { match_id_input: dbM.id });
       if (rpcErr) console.error("calculate_match_points err", rpcErr);
 
-      updatedMatches.push({ id: dbM.id, match_date: dbM.match_date });
+      updatedMatches.push({ id: dbM.id, match_date: dbM.match_date, api_football_id: apiM.id });
       updated++;
     }
     console.log(`[sync-results] updated=${updated}`);
 
-    // ===== PASSO 4: Goleadores — compara snapshot pré-kickoff vs atual =====
-    console.log("[sync-results] Step 4: scorer points (persistent snapshot strategy)");
+    // ===== PASSO 4: Goleadores — fonte autoritativa via /matches/{id}, fallback p/ snapshots =====
+    console.log("[sync-results] Step 4: scorer points (per-match goals, snapshot fallback)");
     let scorers_resolved = 0;
-    let scorers_skipped = false;
+    let scorers_skipped = 0;
 
-    if (!currentScorersMap) {
-      console.warn("[sync-results] scorers data unavailable — skipping scorer points this run");
-      scorers_skipped = true;
-    } else {
-      const teamByPlayer = new Map<string, string>();
-      for (const s of currentScorersList ?? []) {
-        const name = s.player?.name;
-        if (name) teamByPlayer.set(norm(name), s.team?.name ?? "");
-      }
+    const teamByPlayer = new Map<string, string>();
+    for (const s of currentScorersList ?? []) {
+      const name = s.player?.name;
+      if (name) teamByPlayer.set(norm(name), s.team?.name ?? "");
+    }
 
-      for (const { id: matchId, match_date } of updatedMatches) {
-        // Buscar snapshot mais recente ANTES do kickoff
+    for (const { id: matchId, match_date, api_football_id } of updatedMatches) {
+      // 1) Tenta fonte autoritativa: lista de gols do jogo
+      const matchGoals = await fetchMatchScorers(api_football_id);
+
+      // 2) Fallback: comparar snapshots (lógica antiga)
+      let beforeMap: Map<string, number> | null = null;
+      if (!matchGoals) {
         const { data: snap, error: snapQErr } = await supabase
           .from("scorer_snapshots")
           .select("scorers, captured_at")
@@ -231,68 +232,75 @@ Deno.serve(async (req) => {
           .order("captured_at", { ascending: false })
           .limit(1)
           .maybeSingle();
-
-        if (snapQErr) {
-          console.error("snapshot query err", snapQErr);
-          continue;
-        }
-        if (!snap) {
-          console.warn(`[sync-results] no pre-kickoff snapshot for match ${matchId} (kickoff=${match_date}) — skipping scorer points for this match`);
-          continue;
-        }
-
-        const beforeMap = new Map<string, number>();
-        for (const s of (snap.scorers as any[]) ?? []) {
-          if (s.name) beforeMap.set(norm(s.name), s.goals ?? 0);
-        }
-
-        const { data: preds, error: predErr } = await supabase
-          .from("predictions")
-          .select("id, user_id, bolao_id, scorer_name")
-          .eq("match_id", matchId)
-          .not("scorer_name", "is", null);
-        if (predErr) { console.error("preds query err", predErr); continue; }
-        if (!preds || preds.length === 0) continue;
-
-        const hitsByPlayer = new Map<string, { bolaoIds: Set<string>; count: number }>();
-
-        for (const p of preds) {
-          if (!p.scorer_name) continue;
-          const key = norm(p.scorer_name);
-          const before = beforeMap.get(key) ?? 0;
-          const after = currentScorersMap.get(key) ?? 0;
-          const scored = after > before;
-          const points = scored ? 2 : -1;
-
-          const { error: updPredErr } = await supabase
-            .from("predictions")
-            .update({ scorer_points: points })
-            .eq("id", p.id);
-          if (updPredErr) { console.error("update pred err", updPredErr); continue; }
-          scorers_resolved++;
-
-          if (scored) {
-            const entry = hitsByPlayer.get(p.scorer_name) ?? { bolaoIds: new Set(), count: 0 };
-            entry.bolaoIds.add(p.bolao_id);
-            entry.count++;
-            hitsByPlayer.set(p.scorer_name, entry);
-          }
-        }
-
-        for (const [playerName, info] of hitsByPlayer.entries()) {
-          const teamName = teamByPlayer.get(norm(playerName)) ?? "";
-          for (const bolaoId of info.bolaoIds) {
-            const { error: feedErr } = await supabase.from("feed_events").insert({
-              bolao_id: bolaoId,
-              match_id: matchId,
-              event_type: "scorer_hit",
-              message: `⚽ ${playerName} marcou para ${teamName}! ${info.count} palpiteiro(s) acertaram o goleador.`,
-            });
-            if (feedErr) console.error("feed insert err", feedErr);
+        if (snapQErr) { console.error("snapshot query err", snapQErr); }
+        if (snap) {
+          beforeMap = new Map();
+          for (const s of (snap.scorers as any[]) ?? []) {
+            if (s.name) beforeMap.set(norm(s.name), s.goals ?? 0);
           }
         }
       }
+
+      // Se nem fonte autoritativa nem snapshot estão disponíveis → adiar (próximo run tenta de novo)
+      if (!matchGoals && (!beforeMap || !currentScorersMap)) {
+        console.warn(`[sync-results] no scorer data for match ${matchId} — deferring`);
+        scorers_skipped++;
+        continue;
+      }
+
+      const { data: preds, error: predErr } = await supabase
+        .from("predictions")
+        .select("id, user_id, bolao_id, scorer_name")
+        .eq("match_id", matchId)
+        .not("scorer_name", "is", null);
+      if (predErr) { console.error("preds query err", predErr); continue; }
+      if (!preds || preds.length === 0) continue;
+
+      const hitsByPlayer = new Map<string, { bolaoIds: Set<string>; count: number }>();
+
+      for (const p of preds) {
+        if (!p.scorer_name) continue;
+        const key = norm(p.scorer_name);
+
+        let scored: boolean;
+        if (matchGoals) {
+          scored = matchGoals.has(key);
+        } else {
+          const before = beforeMap!.get(key) ?? 0;
+          const after = currentScorersMap!.get(key) ?? 0;
+          scored = after > before;
+        }
+        const points = scored ? 2 : -1;
+
+        const { error: updPredErr } = await supabase
+          .from("predictions")
+          .update({ scorer_points: points })
+          .eq("id", p.id);
+        if (updPredErr) { console.error("update pred err", updPredErr); continue; }
+        scorers_resolved++;
+
+        if (scored) {
+          const entry = hitsByPlayer.get(p.scorer_name) ?? { bolaoIds: new Set(), count: 0 };
+          entry.bolaoIds.add(p.bolao_id);
+          entry.count++;
+          hitsByPlayer.set(p.scorer_name, entry);
+        }
+      }
+
+      for (const [playerName, info] of hitsByPlayer.entries()) {
+        const teamName = teamByPlayer.get(norm(playerName)) ?? "";
+        for (const bolaoId of info.bolaoIds) {
+          const { error: feedErr } = await supabase.from("feed_events").insert({
+            bolao_id: bolaoId,
+            match_id: matchId,
+            event_type: "scorer_hit",
+            message: `⚽ ${playerName} marcou para ${teamName}! ${info.count} palpiteiro(s) acertaram o goleador.`,
+          });
+          if (feedErr) console.error("feed insert err", feedErr);
+        }
+      }
     }
+
 
     // ===== PASSO 5: Generate feed events =====
     console.log("[sync-results] Step 5: invoking generate-feed-events");
