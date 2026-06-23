@@ -65,6 +65,37 @@ async function fetchScorersList(): Promise<any[] | null> {
   }
 }
 
+async function fetchScorersList(): Promise<any[] | null> {
+  try {
+    const data = await apiGet(`/competitions/WC/scorers?season=2026&limit=100`);
+    return data.scorers ?? [];
+  } catch (e) {
+    console.error("[fetchScorersList] failed (non-fatal):", String((e as Error).message ?? e));
+    return null;
+  }
+}
+
+// Fonte autoritativa: lista de gols do jogo específico. Retorna Map<nome_normalizado, nº_de_gols>.
+async function fetchMatchScorers(apiMatchId: number): Promise<Map<string, number> | null> {
+  try {
+    const data = await apiGet(`/matches/${apiMatchId}`);
+    const goals: any[] = data?.match?.goals ?? data?.goals ?? [];
+    const map = new Map<string, number>();
+    for (const g of goals) {
+      // football-data marca own goals com type "OWN" — ignorar para fins de palpite de goleador
+      if (g.type === "OWN") continue;
+      const name = g.scorer?.name;
+      if (!name) continue;
+      const k = norm(name);
+      map.set(k, (map.get(k) ?? 0) + 1);
+    }
+    return map;
+  } catch (e) {
+    console.error(`[fetchMatchScorers] failed for ${apiMatchId} (non-fatal):`, String((e as Error).message ?? e));
+    return null;
+  }
+}
+
 function buildScorersMap(scorers: any[] | null): Map<string, number> | null {
   if (!scorers) return null;
   const map = new Map<string, number>();
