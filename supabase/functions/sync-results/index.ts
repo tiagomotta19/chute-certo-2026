@@ -184,8 +184,12 @@ Deno.serve(async (req) => {
     let updated = 0;
 
     for (const apiM of finished) {
-      const homeScore = apiM.score?.fullTime?.home;
-      const awayScore = apiM.score?.fullTime?.away;
+      // Placar oficial p/ pontuação = somente 90 min.
+      // Em jogos eliminatórios com prorrogação/pênaltis, a API retorna o agregado em `fullTime`
+      // e os 90 min em `regularTime`. Usamos `regularTime` quando disponível; caso contrário,
+      // `fullTime` já representa os 90 min (jogos decididos no tempo normal).
+      const homeScore = apiM.score?.regularTime?.home ?? apiM.score?.fullTime?.home;
+      const awayScore = apiM.score?.regularTime?.away ?? apiM.score?.fullTime?.away;
       if (homeScore === null || homeScore === undefined) continue;
 
       const dbM = dbFull?.find((m) => m.api_football_id === apiM.id);
