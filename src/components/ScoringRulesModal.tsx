@@ -75,9 +75,29 @@ const ScoringRulesModal = () => {
 
           <div>
             <h3 className="mb-2 font-semibold text-primary">🔥 Multiplicador Eliminatórias</h3>
-            <p className="text-muted-foreground">
-              Todos os jogos a partir das oitavas de final têm multiplicador de{" "}
-              <span className="font-bold text-foreground">1.5×</span> sobre a pontuação total.
+            <ul className="space-y-1.5 text-muted-foreground">
+              <li className="flex justify-between">
+                <span>32 avos de final</span>
+                <span className="font-bold text-foreground">1,25×</span>
+              </li>
+              <li className="flex justify-between">
+                <span>Oitavas e quartas de final</span>
+                <span className="font-bold text-foreground">1,5×</span>
+              </li>
+              <li className="flex justify-between">
+                <span>Semi, 3º lugar e final</span>
+                <span className="font-bold text-foreground">2×</span>
+              </li>
+              <li className="text-xs italic">
+                Multiplicador aplicado sobre a pontuação do placar. Goleador não multiplica.
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="mb-2 font-semibold text-primary">⏱️ Prorrogação</h3>
+            <p className="text-muted-foreground text-xs">
+              No mata-mata, o placar vale apenas os 90 minutos. Já o goleador conta gols na prorrogação também.
             </p>
           </div>
 
