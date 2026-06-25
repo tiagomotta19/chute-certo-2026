@@ -23,7 +23,8 @@ const NAME_MAP: Record<string, string> = {
   "Portugal": "Portugal", "Argentina": "Argentina", "México": "Mexico", "Canadá": "Canada",
 };
 
-const norm = (s: string) => s.trim().toLowerCase();
+const norm = (s: string) =>
+  s.normalize("NFD").replace(/\p{Diacritic}/gu, "").trim().toLowerCase();
 const ptToEn = (pt: string) => NAME_MAP[pt] ?? pt;
 
 async function apiGet(path: string, attempts = 3) {
