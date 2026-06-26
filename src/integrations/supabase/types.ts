@@ -502,9 +502,17 @@ export type Database = {
         Args: { invite_code_input: string }
         Returns: Json
       }
+      recompute_match_scorers_from_snapshots: {
+        Args: { match_id_input: string }
+        Returns: Json
+      }
       regenerate_invite_code: {
         Args: { bolao_id_input: string }
         Returns: Json
+      }
+      set_match_scorers: {
+        Args: { match_id_input: string; scorer_names: string[] }
+        Returns: undefined
       }
       unaccent: { Args: { "": string }; Returns: string }
     }
