@@ -72,21 +72,27 @@ async function fetchMatchScorers(apiMatchId: number): Promise<Map<string, number
   try {
     const data = await apiGet(`/matches/${apiMatchId}`);
     const goals: any[] = data?.match?.goals ?? data?.goals ?? [];
+    // Free-tier do football-data.org NÃO retorna `goals` por jogo (vem vazio).
+    // Nesse caso, devolvemos null para o caller cair no fallback de snapshots.
+    if (!Array.isArray(goals) || goals.length === 0) {
+      console.warn(`[fetchMatchScorers] empty goals array for ${apiMatchId} — falling back to snapshots`);
+      return null;
+    }
     const map = new Map<string, number>();
     for (const g of goals) {
-      // football-data marca own goals com type "OWN" — ignorar para fins de palpite de goleador
       if (g.type === "OWN") continue;
       const name = g.scorer?.name;
       if (!name) continue;
       const k = norm(name);
       map.set(k, (map.get(k) ?? 0) + 1);
     }
-    return map;
+    return map.size > 0 ? map : null;
   } catch (e) {
     console.error(`[fetchMatchScorers] failed for ${apiMatchId} (non-fatal):`, String((e as Error).message ?? e));
     return null;
   }
 }
+
 
 function buildScorersMap(scorers: any[] | null): Map<string, number> | null {
   if (!scorers) return null;
