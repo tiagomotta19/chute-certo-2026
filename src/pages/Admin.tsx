@@ -726,6 +726,7 @@ const MatchResultEditor = ({
   match: Match;
   onSave: (id: string, home: number, away: number, bonusResult?: boolean | null) => Promise<void>;
 }) => {
+  const { toast } = useToast();
   const [homeScore, setHomeScore] = useState(match.home_score?.toString() || "");
   const [awayScore, setAwayScore] = useState(match.away_score?.toString() || "");
   const [saving, setSaving] = useState(false);
@@ -733,6 +734,13 @@ const MatchResultEditor = ({
   const [bonusResult, setBonusResult] = useState<string>(
     (match as any).bonus_result === true ? "sim" : (match as any).bonus_result === false ? "nao" : ""
   );
+
+  // Scorer manager state
+  const [scorersOpen, setScorersOpen] = useState(false);
+  const [scorerPreds, setScorerPreds] = useState<{ scorer_name: string; scorer_points: number | null; count: number }[]>([]);
+  const [realScorers, setRealScorers] = useState("");
+  const [savingScorers, setSavingScorers] = useState(false);
+  const [reprocessing, setReprocessing] = useState(false);
 
   // Sync state when match prop changes (after parent updates)
   useEffect(() => {
@@ -743,6 +751,34 @@ const MatchResultEditor = ({
     );
   }, [match.home_score, match.away_score, (match as any).bonus_result]);
 
+  const loadScorerPreds = async () => {
+    const { data, error } = await supabase
+      .from("predictions")
+      .select("scorer_name, scorer_points")
+      .eq("match_id", match.id)
+      .not("scorer_name", "is", null);
+    if (error) return;
+    const map = new Map<string, { scorer_points: number | null; count: number }>();
+    (data || []).forEach((p: any) => {
+      if (!p.scorer_name) return;
+      const cur = map.get(p.scorer_name) ?? { scorer_points: p.scorer_points, count: 0 };
+      cur.count++;
+      cur.scorer_points = p.scorer_points;
+      map.set(p.scorer_name, cur);
+    });
+    setScorerPreds(
+      Array.from(map.entries())
+        .map(([scorer_name, v]) => ({ scorer_name, ...v }))
+        .sort((a, b) => b.count - a.count)
+    );
+  };
+
+  const toggleScorers = async () => {
+    const next = !scorersOpen;
+    setScorersOpen(next);
+    if (next) await loadScorerPreds();
+  };
+
   const handleSave = async () => {
     const h = parseInt(homeScore);
     const a = parseInt(awayScore);
@@ -751,6 +787,43 @@ const MatchResultEditor = ({
     const br = bonusResult === "sim" ? true : bonusResult === "nao" ? false : null;
     await onSave(match.id, h, a, br);
     setSaving(false);
+  };
+
+  const handleSaveScorers = async () => {
+    const names = realScorers
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    setSavingScorers(true);
+    const { error } = await (supabase as any).rpc("set_match_scorers", {
+      match_id_input: match.id,
+      scorer_names: names,
+    });
+    setSavingScorers(false);
+    if (error) {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Goleadores atualizados", description: `${names.length} jogador(es) marcado(s) como goleador.` });
+    setRealScorers("");
+    await loadScorerPreds();
+  };
+
+  const handleReprocess = async () => {
+    setReprocessing(true);
+    const { data, error } = await (supabase as any).rpc("recompute_match_scorers_from_snapshots", {
+      match_id_input: match.id,
+    });
+    setReprocessing(false);
+    if (error) {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({
+      title: "Reprocessado",
+      description: `${data?.scored_count ?? 0} goleador(es) detectado(s), ${data?.predictions_updated ?? 0} palpite(s) atualizado(s).`,
+    });
+    await loadScorerPreds();
   };
 
   return (
@@ -804,9 +877,64 @@ const MatchResultEditor = ({
             </Select>
           </div>
         )}
+
+        {match.is_finished && (
+          <div className="pt-2 border-t mt-2">
+            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={toggleScorers}>
+              {scorersOpen ? "▾" : "▸"} Goleadores
+            </Button>
+            {scorersOpen && (
+              <div className="space-y-2 mt-2">
+                {scorerPreds.length > 0 ? (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Palpites de goleador neste jogo:</p>
+                    <ul className="text-xs space-y-0.5">
+                      {scorerPreds.map((p) => (
+                        <li key={p.scorer_name} className="flex justify-between gap-2">
+                          <span>
+                            {p.scorer_points === 2 ? "✅" : p.scorer_points === -1 ? "❌" : "•"}{" "}
+                            {p.scorer_name}
+                          </span>
+                          <span className="text-muted-foreground">
+                            ({p.count}× • {p.scorer_points ?? "?"} pts)
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Nenhum palpite de goleador.</p>
+                )}
+                <div className="space-y-1">
+                  <Label className="text-xs">Goleadores reais (separe por vírgula)</Label>
+                  <Input
+                    placeholder="Ex: Cody Gakpo, Brian Brobbey"
+                    value={realScorers}
+                    onChange={(e) => setRealScorers(e.target.value)}
+                    className="text-xs"
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Ignora acentos/maiúsculas. Acerto = +2, erro = -1.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" disabled={savingScorers || !realScorers.trim()} onClick={handleSaveScorers}>
+                    {savingScorers ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Save className="h-3 w-3 mr-1" />}
+                    Salvar goleadores
+                  </Button>
+                  <Button size="sm" variant="outline" disabled={reprocessing} onClick={handleReprocess}>
+                    {reprocessing ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                    Reprocessar via API
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
 };
+
 
 export default Admin;
