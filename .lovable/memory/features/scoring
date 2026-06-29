@@ -13,10 +13,10 @@ type: feature
 - Correct: +2 pts
 - Wrong: -1 pt
 
-## Knockout multiplier (applied to placar, CEIL; goleador não multiplica)
-- round_of_32: 1.25×
-- round_of_16, quarter_final: 1.5×
-- semi_final, third_place, final: 2×
+## Knockout multiplier (CEIL no valor absoluto)
+- round_of_32: placar 1.25× | goleador SEM multiplicador
+- round_of_16, quarter_final: placar e goleador 1.5×
+- semi_final, third_place, final: placar e goleador 2×
 - Placar usa apenas 90 min (score.regularTime ?? score.fullTime); goleador conta prorrogação
 
 ## Season predictions
