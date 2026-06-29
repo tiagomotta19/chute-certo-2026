@@ -89,7 +89,7 @@ const ScoringRulesModal = () => {
                 <span className="font-bold text-foreground">2×</span>
               </li>
               <li className="text-xs italic">
-                Multiplicador aplicado sobre a pontuação do placar. Goleador não multiplica.
+                Multiplicador aplicado sobre a pontuação do placar. A partir das oitavas, vale também para o goleador (32 avos não multiplica goleador).
               </li>
             </ul>
           </div>
