@@ -184,7 +184,7 @@ Deno.serve(async (req) => {
 
     const { data: dbFull, error: dbFullErr } = await supabase
       .from("matches")
-      .select("id, api_football_id, home_score, away_score, is_manual_override, home_team, away_team, match_date");
+      .select("id, api_football_id, home_score, away_score, extra_time_home, extra_time_away, penalty_home, penalty_away, is_manual_override, home_team, away_team, match_date");
     if (dbFullErr) throw dbFullErr;
 
     const updatedMatches: Array<{ id: string; match_date: string; api_football_id: number }> = [];
