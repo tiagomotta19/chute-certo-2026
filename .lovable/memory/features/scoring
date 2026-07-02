@@ -17,7 +17,8 @@ type: feature
 - round_of_32: placar 1.25× | goleador SEM multiplicador
 - round_of_16, quarter_final: placar e goleador 1.5×
 - semi_final, third_place, final: placar e goleador 2×
-- Placar usa apenas 90 min (score.regularTime ?? score.fullTime); goleador conta prorrogação
+- Placar usa apenas 90 min. Se regularTime null mas extraTime presente → 90min = fullTime - extraTime. Goleador conta prorrogação.
+- matches.extra_time_home/away armazena placar TOTAL após prorrogação (90+ET); penalty_home/away armazena disputa de pênaltis. Exibidos via formatMatchScore em src/lib/match-score.ts.
 
 ## Season predictions
 - Champion: 30 pts
