@@ -150,8 +150,8 @@ const Calendario = () => {
               <span className="emoji-flag">{getFlag(match.home_team)}</span> {match.home_team}
             </span>
             {match.is_finished ? (
-              <span className="mx-3 min-w-[60px] text-center text-lg font-bold text-accent">
-                {match.home_score} × {match.away_score}
+              <span className="mx-3 min-w-[60px] text-center text-sm font-bold text-accent leading-tight">
+                {formatMatchScore(match)}
               </span>
             ) : (
               <span className="mx-3 min-w-[70px] text-center text-sm font-medium text-muted-foreground">
