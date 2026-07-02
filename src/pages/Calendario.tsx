@@ -14,6 +14,7 @@ import BottomNav from "@/components/BottomNav";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
 import { getFlag } from "@/lib/country-flags";
+import { formatMatchScore } from "@/lib/match-score";
 import {
   STAGE_LABELS,
   getClosestGroupName,
