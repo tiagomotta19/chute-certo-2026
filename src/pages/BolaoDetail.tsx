@@ -670,7 +670,7 @@ const MatchPredictionCard = ({
         </CardTitle>
         {match.is_finished && (
           <p className="text-sm font-bold text-accent">
-            Resultado: {match.home_score} × {match.away_score}
+            Resultado: {formatMatchScore(match)}
           </p>
         )}
       </CardHeader>
