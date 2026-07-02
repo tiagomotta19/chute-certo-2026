@@ -10,6 +10,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Loader2, Trophy } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
+import { formatMatchScore } from "@/lib/match-score";
 
 type Match = Tables<"matches">;
 type Prediction = Tables<"predictions">;
