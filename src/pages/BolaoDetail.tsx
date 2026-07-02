@@ -20,6 +20,7 @@ import SeasonPredictions from "@/components/SeasonPredictions";
 import ScoringRulesModal from "@/components/ScoringRulesModal";
 import BolaoFeed from "@/components/BolaoFeed";
 import MatchPredictionsDialog from "@/components/MatchPredictionsDialog";
+import { formatMatchScore } from "@/lib/match-score";
 import {
   STAGE_LABELS,
   getClosestGroupName,
