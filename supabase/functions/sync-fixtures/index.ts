@@ -163,11 +163,11 @@ function getAllMatches(): Match[] {
     // ==================== ROUND OF 16 (8 matches) ====================
 
     // --- July 4 ---
-    { home_team: "W73", away_team: "W75", match_date: "2026-07-04T17:00:00Z", stadium: "Estádio de Houston", city: "Houston", stage: "round_of_16", group_name: null },
+    { home_team: "W73", away_team: "W76", match_date: "2026-07-04T17:00:00Z", stadium: "Estádio de Houston", city: "Houston", stage: "round_of_16", group_name: null },
     { home_team: "W74", away_team: "W77", match_date: "2026-07-04T21:00:00Z", stadium: "Estádio de Filadélfia", city: "Filadélfia", stage: "round_of_16", group_name: null },
 
     // --- July 5 ---
-    { home_team: "W76", away_team: "W78", match_date: "2026-07-05T20:00:00Z", stadium: "Estádio de Nova York/Nova Jersey", city: "Nova Iorque", stage: "round_of_16", group_name: null },
+    { home_team: "W75", away_team: "W78", match_date: "2026-07-05T20:00:00Z", stadium: "Estádio de Nova York/Nova Jersey", city: "Nova Iorque", stage: "round_of_16", group_name: null },
     { home_team: "W79", away_team: "W80", match_date: "2026-07-06T00:00:00Z", stadium: "Estádio da Cidade do México", city: "Cidade do México", stage: "round_of_16", group_name: null },
 
     // --- July 6 ---
@@ -175,8 +175,8 @@ function getAllMatches(): Match[] {
     { home_team: "W81", away_team: "W82", match_date: "2026-07-07T00:00:00Z", stadium: "Estádio de Seattle", city: "Seattle", stage: "round_of_16", group_name: null },
 
     // --- July 7 ---
-    { home_team: "W86", away_team: "W88", match_date: "2026-07-07T16:00:00Z", stadium: "Estádio de Atlanta", city: "Atlanta", stage: "round_of_16", group_name: null },
-    { home_team: "W85", away_team: "W87", match_date: "2026-07-07T20:00:00Z", stadium: "BC Place de Vancouver", city: "Vancouver", stage: "round_of_16", group_name: null },
+    { home_team: "W85", away_team: "W86", match_date: "2026-07-07T16:00:00Z", stadium: "Estádio de Atlanta", city: "Atlanta", stage: "round_of_16", group_name: null },
+    { home_team: "W87", away_team: "W88", match_date: "2026-07-07T20:00:00Z", stadium: "BC Place de Vancouver", city: "Vancouver", stage: "round_of_16", group_name: null },
 
     // ==================== QUARTER-FINALS (4 matches) ====================
 
