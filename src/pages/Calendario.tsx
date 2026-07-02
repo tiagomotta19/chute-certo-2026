@@ -114,7 +114,7 @@ const Calendario = () => {
         timeZone: "America/Sao_Paulo",
       });
       const score = match.is_finished
-        ? `  ${match.home_score} × ${match.away_score}`
+        ? `  ${formatMatchScore(match)}`
         : "";
       text += `${d} ${time} — ${match.home_team} × ${match.away_team}${score}\n`;
     });
