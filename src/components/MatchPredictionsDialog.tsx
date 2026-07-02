@@ -113,7 +113,7 @@ const MatchPredictionsDialog = ({
           <DialogDescription className="text-xs">
             {match.home_team} vs {match.away_team}
             {match.is_finished && (
-              <> · Resultado: <span className="font-semibold text-accent">{match.home_score} × {match.away_score}</span></>
+              <> · Resultado: <span className="font-semibold text-accent">{formatMatchScore(match)}</span></>
             )}
           </DialogDescription>
         </DialogHeader>
