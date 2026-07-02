@@ -195,8 +195,24 @@ Deno.serve(async (req) => {
       // Em jogos eliminatórios com prorrogação/pênaltis, a API retorna o agregado em `fullTime`
       // e os 90 min em `regularTime`. Usamos `regularTime` quando disponível; caso contrário,
       // `fullTime` já representa os 90 min (jogos decididos no tempo normal).
-      const homeScore = apiM.score?.regularTime?.home ?? apiM.score?.fullTime?.home;
-      const awayScore = apiM.score?.regularTime?.away ?? apiM.score?.fullTime?.away;
+      // Placar dos 90 min. A API às vezes retorna regularTime=null mesmo quando houve prorrogação
+      // (ex.: 537422 Bélgica x Senegal veio duration=REGULAR, regularTime=null, extraTime=1-0).
+      // Prioridade: regularTime → (fullTime - extraTime) se houve prorrogação → fullTime.
+      const rt = apiM.score?.regularTime;
+      const ft = apiM.score?.fullTime;
+      const et = apiM.score?.extraTime;
+      let homeScore: number | null | undefined;
+      let awayScore: number | null | undefined;
+      if (rt?.home != null && rt?.away != null) {
+        homeScore = rt.home;
+        awayScore = rt.away;
+      } else if (ft?.home != null && ft?.away != null && et?.home != null && et?.away != null) {
+        homeScore = ft.home - et.home;
+        awayScore = ft.away - et.away;
+      } else {
+        homeScore = ft?.home;
+        awayScore = ft?.away;
+      }
       if (homeScore === null || homeScore === undefined) continue;
 
       const dbM = dbFull?.find((m) => m.api_football_id === apiM.id);
