@@ -130,6 +130,8 @@ export type Database = {
           bonus_result: boolean | null
           city: string | null
           created_at: string
+          extra_time_away: number | null
+          extra_time_home: number | null
           group_name: string | null
           home_score: number | null
           home_team: string
@@ -137,6 +139,8 @@ export type Database = {
           is_finished: boolean
           is_manual_override: boolean
           match_date: string
+          penalty_away: number | null
+          penalty_home: number | null
           round_name: string | null
           stadium: string | null
           stage: Database["public"]["Enums"]["match_stage"]
@@ -150,6 +154,8 @@ export type Database = {
           bonus_result?: boolean | null
           city?: string | null
           created_at?: string
+          extra_time_away?: number | null
+          extra_time_home?: number | null
           group_name?: string | null
           home_score?: number | null
           home_team: string
@@ -157,6 +163,8 @@ export type Database = {
           is_finished?: boolean
           is_manual_override?: boolean
           match_date: string
+          penalty_away?: number | null
+          penalty_home?: number | null
           round_name?: string | null
           stadium?: string | null
           stage?: Database["public"]["Enums"]["match_stage"]
@@ -170,6 +178,8 @@ export type Database = {
           bonus_result?: boolean | null
           city?: string | null
           created_at?: string
+          extra_time_away?: number | null
+          extra_time_home?: number | null
           group_name?: string | null
           home_score?: number | null
           home_team?: string
@@ -177,6 +187,8 @@ export type Database = {
           is_finished?: boolean
           is_manual_override?: boolean
           match_date?: string
+          penalty_away?: number | null
+          penalty_home?: number | null
           round_name?: string | null
           stadium?: string | null
           stage?: Database["public"]["Enums"]["match_stage"]

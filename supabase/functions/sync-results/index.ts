@@ -184,7 +184,7 @@ Deno.serve(async (req) => {
 
     const { data: dbFull, error: dbFullErr } = await supabase
       .from("matches")
-      .select("id, api_football_id, home_score, away_score, is_manual_override, home_team, away_team, match_date");
+      .select("id, api_football_id, home_score, away_score, extra_time_home, extra_time_away, penalty_home, penalty_away, is_manual_override, home_team, away_team, match_date");
     if (dbFullErr) throw dbFullErr;
 
     const updatedMatches: Array<{ id: string; match_date: string; api_football_id: number }> = [];
@@ -215,14 +215,38 @@ Deno.serve(async (req) => {
       }
       if (homeScore === null || homeScore === undefined) continue;
 
+      // Prorrogação (placar TOTAL após ET = 90min + ET) e pênaltis (disputa)
+      const pens = apiM.score?.penalties;
+      const hasEt = et?.home != null && et?.away != null && (et.home !== 0 || et.away !== 0 || (pens?.home != null && pens?.away != null));
+      const hasPens = pens?.home != null && pens?.away != null;
+      const etHome = hasEt ? (homeScore + (et.home ?? 0)) : null;
+      const etAway = hasEt ? (awayScore + (et.away ?? 0)) : null;
+      const penHome = hasPens ? pens.home : null;
+      const penAway = hasPens ? pens.away : null;
+
       const dbM = dbFull?.find((m) => m.api_football_id === apiM.id);
       if (!dbM) continue;
       if (dbM.is_manual_override) continue;
-      if (dbM.home_score === homeScore && dbM.away_score === awayScore) continue;
+      if (
+        dbM.home_score === homeScore &&
+        dbM.away_score === awayScore &&
+        (dbM as any).extra_time_home === etHome &&
+        (dbM as any).extra_time_away === etAway &&
+        (dbM as any).penalty_home === penHome &&
+        (dbM as any).penalty_away === penAway
+      ) continue;
 
       const { error: upErr } = await supabase
         .from("matches")
-        .update({ home_score: homeScore, away_score: awayScore, is_finished: true })
+        .update({
+          home_score: homeScore,
+          away_score: awayScore,
+          extra_time_home: etHome,
+          extra_time_away: etAway,
+          penalty_home: penHome,
+          penalty_away: penAway,
+          is_finished: true,
+        })
         .eq("id", dbM.id);
       if (upErr) { console.error("update score err", upErr); continue; }
 

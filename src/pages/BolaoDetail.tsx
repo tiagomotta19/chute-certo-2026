@@ -20,6 +20,7 @@ import SeasonPredictions from "@/components/SeasonPredictions";
 import ScoringRulesModal from "@/components/ScoringRulesModal";
 import BolaoFeed from "@/components/BolaoFeed";
 import MatchPredictionsDialog from "@/components/MatchPredictionsDialog";
+import { formatMatchScore } from "@/lib/match-score";
 import {
   STAGE_LABELS,
   getClosestGroupName,
@@ -669,7 +670,7 @@ const MatchPredictionCard = ({
         </CardTitle>
         {match.is_finished && (
           <p className="text-sm font-bold text-accent">
-            Resultado: {match.home_score} × {match.away_score}
+            Resultado: {formatMatchScore(match)}
           </p>
         )}
       </CardHeader>

@@ -10,6 +10,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Loader2, Trophy } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
+import { formatMatchScore } from "@/lib/match-score";
 
 type Match = Tables<"matches">;
 type Prediction = Tables<"predictions">;
@@ -112,7 +113,7 @@ const MatchPredictionsDialog = ({
           <DialogDescription className="text-xs">
             {match.home_team} vs {match.away_team}
             {match.is_finished && (
-              <> · Resultado: <span className="font-semibold text-accent">{match.home_score} × {match.away_score}</span></>
+              <> · Resultado: <span className="font-semibold text-accent">{formatMatchScore(match)}</span></>
             )}
           </DialogDescription>
         </DialogHeader>
