@@ -660,7 +660,7 @@ const MatchPredictionCard = ({
               : `${stageLabels[match.stage] || match.stage}${match.group_name ? ` • ${match.group_name}` : ""}`}
           </span>
           <span className="text-xs text-muted-foreground">
-            {matchDate.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+            {matchDate.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "America/Sao_Paulo" })}
             {" "}
             {matchDate.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" })}
           </span>
