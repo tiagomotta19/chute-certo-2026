@@ -267,7 +267,7 @@ Deno.serve(async (req) => {
       const { error: rpcErr } = await supabase.rpc("calculate_match_points", { match_id_input: dbM.id });
       if (rpcErr) console.error("calculate_match_points err", rpcErr);
 
-      updatedMatches.push({ id: dbM.id, match_date: dbM.match_date, api_football_id: apiM.id });
+      updatedMatches.push({ id: dbM.id, match_date: dbM.match_date, api_football_id: apiM.id, stage: (dbM as any).stage ?? null });
       updated++;
     }
     console.log(`[sync-results] updated=${updated}`);
