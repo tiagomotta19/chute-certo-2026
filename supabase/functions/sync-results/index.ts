@@ -283,7 +283,8 @@ Deno.serve(async (req) => {
       if (name) teamByPlayer.set(norm(name), s.team?.name ?? "");
     }
 
-    for (const { id: matchId, match_date, api_football_id } of updatedMatches) {
+    for (const { id: matchId, match_date, api_football_id, stage } of updatedMatches) {
+      const scorerMult = scorerMultiplierFor(stage);
       // 1) Tenta fonte autoritativa: lista de gols do jogo
       const matchGoals = await fetchMatchScorers(api_football_id);
 
