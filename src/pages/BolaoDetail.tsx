@@ -51,15 +51,23 @@ const BolaoDetail = () => {
   const [savingMatch, setSavingMatch] = useState<string | null>(null);
 
   const fetchRanking = async (bolaoId: string, competition: string) => {
-    const { data: allPreds } = await supabase
-      .from("predictions")
-      .select("user_id, points, scorer_points, bonus_points")
-      .eq("bolao_id", bolaoId);
-
+    // PostgREST limita 1000 linhas por request. Paginamos para não perder palpites.
+    const PAGE = 1000;
     const totals: Record<string, number> = {};
-    (allPreds || []).forEach((p) => {
-      totals[p.user_id] = (totals[p.user_id] || 0) + (p.points || 0) + (p.scorer_points || 0) + (p.bonus_points || 0);
-    });
+    let from = 0;
+    while (true) {
+      const { data: pagePreds, error } = await supabase
+        .from("predictions")
+        .select("user_id, points, scorer_points, bonus_points")
+        .eq("bolao_id", bolaoId)
+        .range(from, from + PAGE - 1);
+      if (error) { console.error("fetchRanking page error", error); break; }
+      (pagePreds || []).forEach((p) => {
+        totals[p.user_id] = (totals[p.user_id] || 0) + (p.points || 0) + (p.scorer_points || 0) + (p.bonus_points || 0);
+      });
+      if (!pagePreds || pagePreds.length < PAGE) break;
+      from += PAGE;
+    }
 
     // Season predictions only for Copa
     if (competition !== "brasileirao_2026") {
