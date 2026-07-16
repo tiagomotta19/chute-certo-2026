@@ -184,10 +184,24 @@ Deno.serve(async (req) => {
 
     const { data: dbFull, error: dbFullErr } = await supabase
       .from("matches")
-      .select("id, api_football_id, home_score, away_score, extra_time_home, extra_time_away, penalty_home, penalty_away, is_manual_override, home_team, away_team, match_date");
+      .select("id, api_football_id, home_score, away_score, extra_time_home, extra_time_away, penalty_home, penalty_away, is_manual_override, home_team, away_team, match_date, stage");
     if (dbFullErr) throw dbFullErr;
 
-    const updatedMatches: Array<{ id: string; match_date: string; api_football_id: number }> = [];
+    const scorerMultiplierFor = (stage: string | null | undefined): number => {
+      switch (stage) {
+        case "round_of_16":
+        case "quarter_final":
+          return 1.5;
+        case "semi_final":
+        case "third_place":
+        case "final":
+          return 2;
+        default:
+          return 1; // group e round_of_32: sem multiplicador de goleador
+      }
+    };
+
+    const updatedMatches: Array<{ id: string; match_date: string; api_football_id: number; stage: string | null }> = [];
     let updated = 0;
 
     for (const apiM of finished) {
@@ -253,7 +267,7 @@ Deno.serve(async (req) => {
       const { error: rpcErr } = await supabase.rpc("calculate_match_points", { match_id_input: dbM.id });
       if (rpcErr) console.error("calculate_match_points err", rpcErr);
 
-      updatedMatches.push({ id: dbM.id, match_date: dbM.match_date, api_football_id: apiM.id });
+      updatedMatches.push({ id: dbM.id, match_date: dbM.match_date, api_football_id: apiM.id, stage: (dbM as any).stage ?? null });
       updated++;
     }
     console.log(`[sync-results] updated=${updated}`);
@@ -269,7 +283,8 @@ Deno.serve(async (req) => {
       if (name) teamByPlayer.set(norm(name), s.team?.name ?? "");
     }
 
-    for (const { id: matchId, match_date, api_football_id } of updatedMatches) {
+    for (const { id: matchId, match_date, api_football_id, stage } of updatedMatches) {
+      const scorerMult = scorerMultiplierFor(stage);
       // 1) Tenta fonte autoritativa: lista de gols do jogo
       const matchGoals = await fetchMatchScorers(api_football_id);
 
@@ -321,7 +336,7 @@ Deno.serve(async (req) => {
           const after = currentScorersMap!.get(key) ?? 0;
           scored = after > before;
         }
-        const points = scored ? 2 : -1;
+        const points = scored ? Math.ceil(2 * scorerMult) : -Math.ceil(1 * scorerMult);
 
         const { error: updPredErr } = await supabase
           .from("predictions")
