@@ -184,10 +184,24 @@ Deno.serve(async (req) => {
 
     const { data: dbFull, error: dbFullErr } = await supabase
       .from("matches")
-      .select("id, api_football_id, home_score, away_score, extra_time_home, extra_time_away, penalty_home, penalty_away, is_manual_override, home_team, away_team, match_date");
+      .select("id, api_football_id, home_score, away_score, extra_time_home, extra_time_away, penalty_home, penalty_away, is_manual_override, home_team, away_team, match_date, stage");
     if (dbFullErr) throw dbFullErr;
 
-    const updatedMatches: Array<{ id: string; match_date: string; api_football_id: number }> = [];
+    const scorerMultiplierFor = (stage: string | null | undefined): number => {
+      switch (stage) {
+        case "round_of_16":
+        case "quarter_final":
+          return 1.5;
+        case "semi_final":
+        case "third_place":
+        case "final":
+          return 2;
+        default:
+          return 1; // group e round_of_32: sem multiplicador de goleador
+      }
+    };
+
+    const updatedMatches: Array<{ id: string; match_date: string; api_football_id: number; stage: string | null }> = [];
     let updated = 0;
 
     for (const apiM of finished) {
