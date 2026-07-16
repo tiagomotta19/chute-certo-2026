@@ -336,7 +336,7 @@ Deno.serve(async (req) => {
           const after = currentScorersMap!.get(key) ?? 0;
           scored = after > before;
         }
-        const points = scored ? 2 : -1;
+        const points = scored ? Math.ceil(2 * scorerMult) : -Math.ceil(1 * scorerMult);
 
         const { error: updPredErr } = await supabase
           .from("predictions")
